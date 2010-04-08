@@ -1,188 +1,293 @@
-#! /usr/bin/ruby -Ku
+#!/usr/bin/env ruby
 
-require 'net/http'
-require 'kconv'
-require 'yaml'
-require 'rexml/document'
+# -*- coding: utf-8 -*-
+
 require 'uri'
+require 'net/http'
+require 'rexml/document'
+require 'date'
+require 'ostruct'
+require 'openssl'
 
-$locate = Dir::pwd
+Net::HTTP.version_1_2
+
+CONSUMER_KEY    = ''
+CONSUMER_SECRET = ''
+TOKEN           = ''
+TOKEN_SECRET    = ''
 
 class Umitter
-  attr_accessor :user, :password, :message
+  module Weather
+    module Helper
+      def report(report)
+        @report = report
+      end
+      def weather
+        @report
+      end
+      def hot?; weather.hot?; end
+      def cold?; weather.cold?; end
+      def east?; weather.wind_east?; end
+      def west?; weather.wind_west?; end
+      def south?; weather.wind_south?; end
+      def north?; weather.wind_north?; end
+      def calm?; weather.wind_speed < 5; end
+    end
 
-  def initialize
-    config = YAML.load_file("#{$locate}/config.yml")
-    @user = config[:user]
-    @password = config[:password]
-    @message = YAML.load_file("#{$locate}/message.yml")
-  end
+    class Report < OpenStruct
+      def cloudy?; /cloud/i =~ conditions ? true : false; end
+      def rainy?; /rain/i =~ conditions ? true : false; end
+      def storm?; /storm/i =~ conditions ? true : false; end
+      def clear?; /clear/i =~ conditions ? true : false; end
+      def wind_east?; /E/ =~ wind_direction ? true : false; end
+      def wind_west?; /W/ =~ wind_direction ? true : false; end
+      def wind_south?; /S/ =~ wind_direction ? true : false; end
+      def wind_north?; /N/ =~ wind_direction ? true : false; end
+      def hot?; temperature > 24; end
+      def cold?; temperature < 20; end
+    end
 
-  def twitter_write(msg)
-    msg_utf8 = Kconv.toutf8(msg)
+    class Reporter
+      module Location
+        NAHA_CITY = "47930"
+      end
 
-    Net::HTTP.version_1_2
-    req = Net::HTTP::Post.new('/statuses/update.json')
-    req.basic_auth(@user, @password)
-    req.body = 'status=' + URI.encode(msg_utf8)
+      def self.base_uri
+        URI "http://rss.wunderground.com"
+      end
 
-    res = ""
-    Net::HTTP.start('twitter.com', 80) do |http|
-      res = http.request(req)
+      def initialize(opts={})
+        default_opts = {:location => Location::NAHA_CITY}
+        @body = get(default_opts.merge(opts)) {|response| response.body}
+      end
+
+      def self.latest
+        new.reports.first
+      end
+
+      def reports
+        REXML::Document.new(@body).elements.collect('//item') do |e|
+          args = e.elements['description'].text.split('|').inject({}) do |a, n|
+            case n.strip
+            when /^Temperature:\ (.*)/
+              /.*?(\d+)&#\d+;C/ =~ $1
+              a.merge({ :temperature => $1.to_i })
+            when /^Humidity:\ (.*)/
+              /(\d+)%/ =~ $1
+              a.merge({ :humidity => $1.to_i })
+            when /^Pressure:\ (.*)/
+              a.merge({ :pressure => $1.to_i })
+            when /^Conditions:\ (.*)/
+              a.merge({ :conditions => $1 })
+            when /^Wind\ Direction:\ (.*)/
+              a.merge({ :wind_direction => $1 })
+            when /^Wind\ Speed:\ (.*)<.*?>/
+              a.merge({ :wind_speed => ($1.scan(/\d+km\/h/).first.gsub('km/h', '').to_f * 1000/3600).round })
+            else
+              a
+            end
+          end
+          args.update(:at => DateTime.parse(e.elements['title'].text))
+          Weather::Report.new args
+        end
+      end
+
+      private
+
+      def get(opts={}, &block)
+        uri = self.class.base_uri
+        uri.path = "/auto/rss_full/global/stations/#{opts[:location]}"
+        Net::HTTP.start(uri.host) do |http|
+          response = http.request Net::HTTP::Get.new(uri.path)
+          case response
+          when Net::HTTPOK
+            block ? block.call(response) : response
+          else
+            raise
+          end
+        end
+      end
     end
   end
 
-end
+  class SimpleOAuth
+    def initialize(consumer_key, consumer_secret, token, token_secret)
+      @consumer_key = consumer_key
+      @consumer_secret = consumer_secret
+      @token = token
+      @token_secret = token_secret
+      # This class supports only 'HMAC-SHA1' as signature method at present.
+      @signature_method = 'HMAC-SHA1'
+    end
 
+    def get(url, headers = {})
+      request(:GET, url, nil, headers)
+    end
 
-def e2j(eng)
-  eng.downcase.gsub("east", "東").gsub("north", "北").gsub("south", "南").gsub("west", "西").gsub("e", "東").gsub("n", "北").gsub("s", "南").gsub("w", "西")
-end
+    def head(url, headers = {})
+      request(:HEAD, url, nil, headers)
+    end
 
-def convert_rss2string(info)
-  converted_info = Array.new
+    def post(url, body = nil, headers = {})
+      request(:POST, url, body, headers)
+    end
 
-  info.each do |info|
-    info_utf8 = Kconv.toutf8(info).split(": ")
+    def put(url, body = nil, headers = {})
+      request(:PUT, url, body, headers)
+    end
 
-    if ("Temperature".eql?(info_utf8.first))
-      converted_info.push(info_utf8.last.split(" / ").last.scan(/\d+/).pop + "℃")
-    elsif ("Wind Direction".eql?(info_utf8.first))
-      converted_info.push(e2j(info_utf8.last))
-    elsif ("Wind Speed".eql?(info_utf8.first))
-      km = info_utf8.last.scan(/\d+km\/h/).pop.to_i
-      m = km * 1000 / 3600
-      converted_info.push("#{m}m/s")
+    def delete(url, headers = {})
+      request(:DELETE, url, nil, headers)
+    end
+
+    private
+    def request(method, url, body = nil, headers = {})
+      method = method.to_s
+      url = URI.parse(url)
+      request = create_http_request(method, url.request_uri, body, headers)
+      request['Authorization'] = auth_header(method, url, request.body)
+      Net::HTTP.new(url.host, url.port).request(request)
+    end
+
+    RESERVED_CHARACTERS = /[^a-zA-Z0-9\-\.\_\~]/
+
+    def escape(value)
+      URI.escape(value.to_s, RESERVED_CHARACTERS)
+    end
+
+    def encode_parameters(params, delimiter = '&', quote = nil)
+      if params.is_a?(Hash)
+        params = params.map do |key, value|
+          "#{escape(key)}=#{quote}#{escape(value)}#{quote}"
+        end
+      else
+        params = params.map { |value| escape(value) }
+      end
+      delimiter ? params.join(delimiter) : params
+    end
+
+    VERSION = '0.1'
+    USER_AGENT = "SimpleOAuth/#{VERSION}"
+
+    def create_http_request(method, path, body, headers)
+      method = method.capitalize.to_sym
+      request = Net::HTTP.const_get(method).new(path, headers)
+      request['User-Agent'] = USER_AGENT
+      if method == :Post || method == :Put
+        request.body = body.is_a?(Hash) ? encode_parameters(body) : body.to_s
+        request.content_type = 'application/x-www-form-urlencoded'
+        request.content_length = (request.body || '').length
+      end
+      request
+    end
+
+    def auth_header(method, url, body)
+      parameters = oauth_parameters
+      parameters[:oauth_signature] = signature(method, url, body, parameters)
+      'OAuth ' + encode_parameters(parameters, ', ', '"')
+    end
+
+    OAUTH_VERSION = '1.0'
+
+    def oauth_parameters
+      {
+        :oauth_consumer_key => @consumer_key,
+        :oauth_token => @token,
+        :oauth_signature_method => @signature_method,
+        :oauth_timestamp => timestamp,
+        :oauth_nonce => nonce,
+        :oauth_version => OAUTH_VERSION
+      }
+    end
+
+    def timestamp
+      Time.now.to_i.to_s
+    end
+
+    def nonce
+      OpenSSL::Digest::Digest.hexdigest('MD5', "#{Time.now.to_f}#{rand}")
+    end
+
+    def signature(*args)
+      base64(digest_hmac_sha1(signature_base_string(*args)))
+    end
+
+    def base64(value)
+      [ value ].pack('m').gsub(/\n/, '')
+    end
+
+    def digest_hmac_sha1(value)
+      OpenSSL::HMAC.digest(OpenSSL::Digest::SHA1.new, secret, value)
+    end
+
+    def secret
+      escape(@consumer_secret) + '&' + escape(@token_secret)
+    end
+
+    def signature_base_string(method, url, body, parameters)
+      method = method.upcase
+      base_url = signature_base_url(url)
+      parameters = normalize_parameters(parameters, body, url.query)
+      encode_parameters([ method, base_url, parameters ])
+    end
+
+    def signature_base_url(url)
+      URI::HTTP.new(url.scheme, url.userinfo, url.host, nil, nil, url.path,
+                    nil, nil, nil)
+    end
+
+    def normalize_parameters(parameters, body, query)
+      parameters = encode_parameters(parameters, nil)
+      parameters += body.split('&') if body
+      parameters += query.split('&') if query
+      parameters.sort.join('&')
+    end
+  end
+
+  include Weather::Helper
+
+  def initialize(opts={})
+    report(opts[:report] || Umitter::Weather::Reporter.latest)
+    @file = opts[:acts_as]
+    @tweets = []
+    @behaviors = []
+    @oauth = SimpleOAuth.new(CONSUMER_KEY,
+                                 CONSUMER_SECRET,
+                                 TOKEN,
+                                 TOKEN_SECRET)
+  end
+
+  def post
+    response = @oauth.post('http://twitter.com/statuses/update.json', {:status => twitter})
+    raise "Request failed: #{response.code}" unless response.code.to_i == 200
+  end
+
+  def twitter
+    instance_eval(File.read(@file))
+    tweet
+  end
+
+  def tweet
+    @tweets.shuffle.first.to_s
+  end
+
+  def helper(&block)
+    Weather::Helper.module_eval &block
+  end
+
+  def it(condition=true, &block)
+    u = self.class.new :weather => weather
+    u.instance_eval &block
+    if @tweets.shuffle.any?
+      @tweets.shuffle.first << u.tweet
     else
-      converted_info.push(info_utf8.last)
-    end
-  end
-  return converted_info
-end
-
-def get_wheter_info_from_rss
-  tag_reg = %r((</?)([a-z]+)([^>]*)(/?>))
-  Net::HTTP.version_1_2
-  req = Net::HTTP::Get.new('/auto/rss_full/global/stations/47930.xml')
-  http = Net::HTTP.start('rss.wunderground.com', 80)
-  res = http.request(req)
-
-  doc = REXML::Document.new(res.body)
-  link = doc.elements['rss/channel/item[1]/link'].text
-  description = doc.elements['rss/channel/item[1]/description'].text
-  
-  info = description.strip.split(" | ").to_a
-  converted_info = convert_rss2string(info)
-
-  return converted_info.push(link)
-end
-
-def get_wheter_info_from_html
-  file_name = "47930.html"
-  uri = "http://nihongo.wunderground.com/global/stations/"
-  system("/usr/bin/wget -q #{uri}#{file_name} -O #{$locate}/#{file_name}")
-  system("/usr/bin/nkf -w --overwrite #{$locate}/#{file_name}")
-  system("/bin/chmod 777 #{$locate}/#{file_name}")
-  tag_reg = %r((</?)([a-z]+)([^>]*)(/?>))
-
-  kousin = ""
-  kion = nil
-  tenki = ""
-  huusoku = ""
-  kazamuki = ""
-
-  start_flg = FALSE
-  kazamuki_flg = FALSE
-  File.open("#{$locate}/#{file_name}").each do |line|
-
-    if line.index("Okinawa, JP (Airport)")or line.index("Naha City, JP (Airport)")
-      start_flg = TRUE
-    end
-
-    if line.index("Elevation:")
-      start_flg = FALSE
-    end
-    
-    if start_flg
-      line.chomp!.strip!
-
-      kousin = line.gsub(tag_reg, "") if line.index("JST")
-      
-      kion ||= line.gsub(tag_reg, "").gsub("\&nbsp;", "") if line.index("℃")
-
-      tenki = line.gsub(tag_reg, "") if line.index("div class=\"b\" style=\"font-size: 14px;\"");
-
-      if line.index("m/s")
-        huusoku = line.gsub(tag_reg, "").gsub("\&nbsp;", "").gsub("/ ", "")
-      end
-
-      
-      if kazamuki_flg
-        kazamuki = line
-        kazamuki_flg = FALSE
-      end
-
-      if line.index("winddir")
-        kazamuki_flg = TRUE
-      end
-
+      @tweets << u.tweet
     end
   end
 
-  system("/bin/rm -rf #{$locate}/#{file_name}")
-  return kousin, kion, tenki, huusoku, kazamuki
-end
-
-def get_message(key)
-  msg = $message[key]
-  #keyが設定されていなかった場合ファイルに追加する。
-  if msg.nil?
-    msg = ""
-    unless key.empty?
-      f = File.open("#{$locate}/message.yml", 'a')
-      f.puts "#{key}: #{key}ってなに？ わからないよ"
-      f.close
-    end
+  def m(tweet)
+    @tweets << tweet
   end
-  return msg
 end
 
-def analyse_tenki
-  line = ""
-  point = ""
-  link = ""
-  tenki_comment = ""
-  result = Array.new
-
-  kion, situdo, kiatu, tenki, kazamuki, huusoku, kousin, link = get_wheter_info_from_rss
-
-  point = get_message(kazamuki)
-#  tenki_comment = get_message(tenki)
-  link = "( " + link +  ")"
-
-  line = ["気温:"+kion, "天気:" + tenki, "風速:" + huusoku, "風向き:" + kazamuki, kousin + "現在" , link].join(" ")
-
-  result.push(line)
-
-  unless point.empty?
-    result.push(point)
-  end
-
-  unless tenki_comment.empty?
-    result.push(tenki_comment)
-  end
-
-  return result
-end
-
-# main
-
-$message = YAML.load_file("#{$locate}/message.yml")
-lines = analyse_tenki
-
-#twitter_write(lines.first)
-lines.each do |line|
-  twitter_write(line)
-  sleep 10
-#  puts line
-end
+Umitter.new(:acts_as => ARGV[0]).post
