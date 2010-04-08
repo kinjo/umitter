@@ -24,10 +24,7 @@ custom_helper do
       @points.flatten!
     end
   end
-
-  def point
-    points.shuffle.first
-  end
+  def point; points.shuffle.first; end
 end
 
 it cloudy? do

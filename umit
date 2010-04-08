@@ -49,7 +49,7 @@ class Umitter
       end
 
       def self.latest
-        open("http://rss.wunderground.com/auto/rss_full/global/stations/" + Location::NAHA_CITY) do |f|
+        open "http://rss.wunderground.com/auto/rss_full/global/stations/" + Location::NAHA_CITY do |f|
           rss = RSS::Parser.parse(f, false)
           attrs = rss.items.first.description.split('|').inject({}) do |attrs, v|
             case v.strip
@@ -218,15 +218,11 @@ class Umitter
     report(opts[:report] || Umitter::Weather::Reporter.latest)
     @file = opts[:acts_as]
     @tweets = []
-    @behaviors = []
-    @oauth = SimpleOAuth.new(CONSUMER_KEY,
-                             CONSUMER_SECRET,
-                             TOKEN,
-                             TOKEN_SECRET)
+    @oauth = SimpleOAuth.new CONSUMER_KEY, CONSUMER_SECRET, TOKEN, TOKEN_SECRET
   end
 
   def post
-    response = @oauth.post('http://twitter.com/statuses/update.json', {:status => twitter})
+    response = @oauth.post 'http://twitter.com/statuses/update.json', {:status => twitter}
     raise "Request failed: #{response.code}" unless response.code.to_i == 200
   end
 
@@ -236,7 +232,7 @@ class Umitter
   end
 
   def take_tweet
-    @tweets.shuffle.first.to_s
+    @tweets.shuffle.first
   end
 
   def custom_helper(&block)
