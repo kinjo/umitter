@@ -110,6 +110,7 @@ class Umitter
     end
   end
 
+  # http://github.com/shibason/rb-simple-oauth
   class SimpleOAuth
     def initialize(consumer_key, consumer_secret, token, token_secret)
       @consumer_key = consumer_key
@@ -264,10 +265,10 @@ class Umitter
 
   def twitter
     instance_eval(File.read(@file))
-    tweet
+    take_tweet
   end
 
-  def tweet
+  def take_tweet
     @tweets.shuffle.first.to_s
   end
 
@@ -279,9 +280,9 @@ class Umitter
     u = self.class.new :weather => weather
     u.instance_eval &block
     if @tweets.shuffle.any?
-      @tweets.shuffle.first << u.tweet
+      @tweets.shuffle.first << u.take_tweet
     else
-      @tweets << u.tweet
+      @tweets << u.take_tweet
     end
   end
 
