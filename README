@@ -1,12 +1,14 @@
-うみったー
-Twitterに沖縄の海情報を投稿するBOT
+Umitter is a Twitter bot posts information of the sea diving condition
+in OKINAWA, Japan.
 
-海情報を配信しているページをパースしてホゲホゲして投稿する。
-(http://nihongo.wunderground.com/global/stations/47930.html)
-cronで一時間毎に実行してるだけ
+Umitter gets weather information at the time from
+http://nihongo.wunderground.com/global/stations/47930.html, then
+constructs a pretty message and post it to Twitter.
 
-1/21を最後に動かなくなった。orz
-今ある問題点としては
- 1. 動くようにする。
- 2. OAUTHに対応する。
- 3. リファクタする。
+rb-simple-oauth is bundled to post to Twitter.
+It is available at the following.
+
+http://github.com/shibason/rb-simple-oauth
+(The simple OAuth sample code for Ruby)
+
+So, if you want scheduling to run periodically, you can use CRON.
