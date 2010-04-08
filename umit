@@ -2,14 +2,10 @@
 
 # -*- coding: utf-8 -*-
 
-require 'uri'
-require 'net/http'
-require 'rexml/document'
-require 'date'
+require 'open-uri'
+require 'rss'
 require 'ostruct'
 require 'openssl'
-
-Net::HTTP.version_1_2
 
 CONSUMER_KEY    = ''
 CONSUMER_SECRET = ''
@@ -19,12 +15,8 @@ TOKEN_SECRET    = ''
 class Umitter
   module Weather
     module Helper
-      def report(report)
-        @report = report
-      end
-      def weather
-        @report
-      end
+      def report(report); @report = report; end
+      def weather; @report; end
       def hot?; weather.hot?; end
       def cold?; weather.cold?; end
       def east?; weather.wind_east?; end
@@ -47,64 +39,35 @@ class Umitter
       def cold?; temperature < 20; end
     end
 
-    class Reporter
+    module Reporter
       module Location
-        NAHA_CITY = "47930"
-      end
-
-      def self.base_uri
-        URI "http://rss.wunderground.com"
-      end
-
-      def initialize(opts={})
-        default_opts = {:location => Location::NAHA_CITY}
-        @body = get(default_opts.merge(opts)) {|response| response.body}
+        NAHA_CITY = '47930'
       end
 
       def self.latest
-        new.reports.first
-      end
-
-      def reports
-        REXML::Document.new(@body).elements.collect('//item') do |e|
-          args = e.elements['description'].text.split('|').inject({}) do |a, n|
-            case n.strip
+        open("http://rss.wunderground.com/auto/rss_full/global/stations/" + Location::NAHA_CITY) do |f|
+          rss = RSS::Parser.parse(f, false)
+          attrs = rss.items.first.description.split('|').inject({}) do |attrs, v|
+            case v.strip
             when /^Temperature:\ (.*)/
               /.*?(\d+)&#\d+;C/ =~ $1
-              a.merge({ :temperature => $1.to_i })
+              attrs.merge({ :temperature => $1.to_i })
             when /^Humidity:\ (.*)/
               /(\d+)%/ =~ $1
-              a.merge({ :humidity => $1.to_i })
+              attrs.merge({ :humidity => $1.to_i })
             when /^Pressure:\ (.*)/
-              a.merge({ :pressure => $1.to_i })
+              attrs.merge({ :pressure => $1.to_i })
             when /^Conditions:\ (.*)/
-              a.merge({ :conditions => $1 })
+              attrs.merge({ :conditions => $1 })
             when /^Wind\ Direction:\ (.*)/
-              a.merge({ :wind_direction => $1 })
+              attrs.merge({ :wind_direction => $1 })
             when /^Wind\ Speed:\ (.*)<.*?>/
-              a.merge({ :wind_speed => ($1.scan(/\d+km\/h/).first.gsub('km/h', '').to_f * 1000/3600).round })
+              attrs.merge({ :wind_speed => ($1.scan(/\d+km\/h/).first.gsub('km/h', '').to_f * 1000/3600).round })
             else
-              a
+              attrs
             end
           end
-          args.update(:at => DateTime.parse(e.elements['title'].text))
-          Weather::Report.new args
-        end
-      end
-
-      private
-
-      def get(opts={}, &block)
-        uri = self.class.base_uri
-        uri.path = "/auto/rss_full/global/stations/#{opts[:location]}"
-        Net::HTTP.start(uri.host) do |http|
-          response = http.request Net::HTTP::Get.new(uri.path)
-          case response
-          when Net::HTTPOK
-            block ? block.call(response) : response
-          else
-            raise
-          end
+          Weather::Report.new(attrs)
         end
       end
     end
