@@ -6,7 +6,7 @@ http://nihongo.wunderground.com/global/stations/47930.html, then
 constructs a pretty message and post to Twitter.
 
 Simple usage is here. At first, you have to edit `umit' file and set 4
-variables. For example,
+variables. e.g.
 
 CONSUMER_KEY    = 'CT8CZfNpXQR70f1lIhulAA'
 CONSUMER_SECRET = 'kXChNfSqY8MN8ZbuuXpKay3Kb2BNGlayZTDkCdRTtJk'
