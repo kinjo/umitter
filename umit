@@ -24,6 +24,10 @@ class Umitter
       def south?; weather.wind_south?; end
       def north?; weather.wind_north?; end
       def calm?; weather.wind_speed < 5; end
+      def cloudy?; weather.cloudy?; end
+      def rainy?; weather.rainy?; end
+      def storm?; weather.storm?; end
+      def clear?; weather.clear?; end
     end
 
     class Report < OpenStruct

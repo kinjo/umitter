@@ -30,7 +30,7 @@ custom_helper do
   end
 end
 
-it weather.cloudy? do
+it cloudy? do
   m "くもり〜、テンション下がりますわ"
   m "はーや、くもりな"
   it cold? do
