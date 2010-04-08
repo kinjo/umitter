@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-helper do
+custom_helper do
   def points
     if defined?(@points)
       @points

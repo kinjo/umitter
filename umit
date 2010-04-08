@@ -271,7 +271,7 @@ class Umitter
     @tweets.shuffle.first.to_s
   end
 
-  def helper(&block)
+  def custom_helper(&block)
     Weather::Helper.module_eval &block
   end
 
