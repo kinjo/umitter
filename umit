@@ -227,7 +227,7 @@ class Umitter
   end
 
   def twitter
-    instance_eval(File.read(@file))
+    instance_eval File.read(@file)
     take_tweet
   end
 
