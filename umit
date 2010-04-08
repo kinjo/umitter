@@ -7,12 +7,12 @@ require 'rss'
 require 'ostruct'
 require 'openssl'
 
-CONSUMER_KEY    = ''
-CONSUMER_SECRET = ''
-TOKEN           = ''
-TOKEN_SECRET    = ''
-
 class Umitter
+  CONSUMER_KEY    = ''
+  CONSUMER_SECRET = ''
+  TOKEN           = ''
+  TOKEN_SECRET    = ''
+
   module Weather
     module Helper
       def report(report); @report = report; end
@@ -220,9 +220,9 @@ class Umitter
     @tweets = []
     @behaviors = []
     @oauth = SimpleOAuth.new(CONSUMER_KEY,
-                                 CONSUMER_SECRET,
-                                 TOKEN,
-                                 TOKEN_SECRET)
+                             CONSUMER_SECRET,
+                             TOKEN,
+                             TOKEN_SECRET)
   end
 
   def post
