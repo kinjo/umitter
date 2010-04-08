@@ -1,0 +1,43 @@
+# -*- coding: utf-8 -*-
+
+helper do
+  def points
+    if defined?(@points)
+      @points
+    else
+      @points = []
+      if east? or south?
+        @points << ['砂辺', 'すなべ', '残波岬', 'ごりちょ', 'ゴリラチョップ']
+      end
+      if south? and !east? and !west?
+        @points << ['へど', '辺戸', '辺戸岬']
+      end
+      if west? and !south? and !north?
+        @points << ['いけい', '伊計', '伊計島']
+      end
+      if north?
+        @points << ['米洲', '大度', '大度浜海岸', 'スーサイド', '山城海岸']
+      end
+      if north? and !east? and !west? and calm?
+        @points << ['こめすアウト', '米洲アウト']
+      end
+      @points.flatten!
+    end
+  end
+
+  def point
+    points.shuffle.first
+  end
+end
+
+it weather.cloudy? do
+  m "くもり〜、テンション下がりますわ"
+  m "はーや、くもりな"
+  it cold? do
+    m "、しかも寒いし"
+    it do
+      m "、ま、いちお#{point}いけるっぽいがな"
+    end
+    m "、いっそ引きこもろうぜ"
+  end
+end
