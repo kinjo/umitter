@@ -10,10 +10,10 @@ require 'ostruct'
 require 'openssl'
 
 class Umitter
-  CONSUMER_KEY    = ''
-  CONSUMER_SECRET = ''
-  TOKEN           = ''
-  TOKEN_SECRET    = ''
+  CONSUMER_KEY    = 'CT8CZfNpXQR70f1lIhultA'
+  CONSUMER_SECRET = 'kXChNfSqY8MN8ZbuuXpKay3Kb2BNGlayZTDkndRTtJk'
+  TOKEN           = '78012048-oLP1t0pEnic7oAh3w33KgKOSBkxvw1dfrxEP6ktLQ'
+  TOKEN_SECRET    = 'ejvQLx0VILHq3kVX15kY9GXwNFHv6hulojCwjn23A4'
 
   module Weather
     module Helper

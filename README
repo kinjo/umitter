@@ -5,7 +5,7 @@ Umitter gets weather information at the time from
 http://nihongo.wunderground.com/global/stations/47930.html, then
 constructs a pretty message and post to Twitter.
 
-Simple usage is here. At first, you have to edit `umit' file and set 4
+Simple usage is here. At first, you have to edit `umitt' file and set 4
 variables. e.g.
 
 CONSUMER_KEY    = 'CT8CZfNpXQR70f1lIhulAA'
@@ -15,11 +15,11 @@ TOKEN_SECRET    = 'ejvQLx0VILHq3kVX15kY0GXwNFHv6hulojCwjn23A4'
 
 So, type as following to run,
 
-ruby ./umit ./sergeant.umit
+ruby ./umitt ./sergeant.umit
 
 or
 
-./umit ./sergeant.umit
+./umitt ./sergeant.umit
 
 sergeant.umit is a SDL file to define Umitter's behavior.
 
