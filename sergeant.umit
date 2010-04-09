@@ -30,13 +30,32 @@ end
 it cloudy? do
   m "くもり〜、テンション下がりますわ"
   m "はーや、くもりな"
-  it cold? do
-    m "、しかも寒いし"
-    it do
-      m "、ま、いちお#{point}いけるっぽいがな"
+  it do
+    m "、ま、いちお#{point}いけるっぽい"
+    it cold? do
+      m "、しかし寒い"
+      m "、いっそ引きこもろうぜ"
     end
-    m "、いっそ引きこもろうぜ"
   end
+  m "くもってるやっさ"
+end
+
+it rainy? do
+  m "雨〜、ひきこもるぜ"
+  m "雨ふっちょん、テンション下がるし"
+  m "雨か、早くやまないかな"
+end
+
+it clear? do
+  m "晴れちょん、#{point}いくしかあるまい"
+  it cold? do
+    m "、泳ぐにゃ寒いけどな"
+  end
+end
+
+it clear? && hot? && calm? do
+  m "仕事とかいいから、#{point}いけ"
+  m "#{point}爆凪だはずよ〜"
 end
 
 it do
