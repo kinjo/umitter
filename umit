@@ -218,6 +218,8 @@ class Umitter
 
   include Weather::Helper
 
+  attr_accessor :tweets
+
   def initialize(opts={})
     report(opts[:report] || Umitter::Weather::Reporter.latest)
     @file = opts[:acts_as]
@@ -235,8 +237,35 @@ class Umitter
     take_tweet
   end
 
-  def take_tweet
-    @tweets.shuffle.first
+  # The argument will be as following.
+  #
+  # [['t1', 't2'], 't3', ['t4'], 't5', 't6', ['t7'], ,,,]
+  #
+  # In this case, the method will construct sentences as following,
+  # then randomly return a sentence from. e.g.
+  #
+  # 't1', 't3t4', 't5t7', t6, ,,, ('t5t7' will return)
+  def take_tweet(tws=@tweets)
+    taken_tweets = []
+    buf = []
+    tws.each do |m|
+      if m.is_a?(Array)
+        taken = take_tweet m
+        if taken
+          if buf.any?
+            buf.shuffle.first << taken
+          else
+            buf << taken
+          end
+        end
+        taken_tweets << buf
+        buf = [] # clear method wipes out tweets
+      else
+        buf << m
+      end
+    end
+    taken_tweets << buf
+    taken_tweets.flatten.shuffle.first
   end
 
   def custom_helper(&block)
@@ -246,11 +275,7 @@ class Umitter
   def it(condition=true, &block)
     u = self.class.new :weather => weather
     u.instance_eval &block
-    if @tweets.shuffle.any?
-      @tweets.shuffle.first << u.take_tweet
-    else
-      @tweets << u.take_tweet
-    end
+    @tweets << u.tweets
   end
 
   def m(tweet)

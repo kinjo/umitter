@@ -38,3 +38,7 @@ it cloudy? do
     m "、いっそ引きこもろうぜ"
   end
 end
+
+it true do
+  m 'ほえ〜、ねむねむ'
+end
