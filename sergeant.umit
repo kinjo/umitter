@@ -39,6 +39,6 @@ it cloudy? do
   end
 end
 
-it true do
+it do
   m 'ほえ〜、ねむねむ'
 end
