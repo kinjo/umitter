@@ -17,8 +17,7 @@ class Umitter
 
   module Weather
     module Helper
-      def report(report); @report = report; end
-      def weather; @report; end
+      def weather; Weather::Reporter.latest; end
       def hot?; weather.hot?; end
       def cold?; weather.cold?; end
       def east?; weather.wind_east?; end
@@ -51,29 +50,33 @@ class Umitter
       end
 
       def self.latest
-        open "http://rss.wunderground.com/auto/rss_full/global/stations/" + Location::NAHA_CITY do |f|
-          rss = RSS::Parser.parse(f, false)
-          attrs = rss.items.first.description.split('|').inject({}) do |attrs, v|
-            case v.strip
-            when /^Temperature:\ (.*)/
-              /.*?(\d+)&#\d+;C/ =~ $1
-              attrs.merge({ :temperature => $1.to_i })
-            when /^Humidity:\ (.*)/
-              /(\d+)%/ =~ $1
-              attrs.merge({ :humidity => $1.to_i })
-            when /^Pressure:\ (.*)/
-              attrs.merge({ :pressure => $1.to_i })
-            when /^Conditions:\ (.*)/
-              attrs.merge({ :conditions => $1 })
-            when /^Wind\ Direction:\ (.*)/
-              attrs.merge({ :wind_direction => $1 })
-            when /^Wind\ Speed:\ (.*)<.*?>/
-              attrs.merge({ :wind_speed => ($1.scan(/\d+km\/h/).first.gsub('km/h', '').to_f * 1000/3600).round })
-            else
-              attrs
+        if defined?(@report)
+          @report
+        else
+          open "http://rss.wunderground.com/auto/rss_full/global/stations/" + Location::NAHA_CITY do |f|
+            rss = RSS::Parser.parse(f, false)
+            attrs = rss.items.first.description.split('|').inject({}) do |attrs, v|
+              case v.strip
+              when /^Temperature:\ (.*)/
+                /.*?(\d+)&#\d+;C/ =~ $1
+                attrs.merge({ :temperature => $1.to_i })
+              when /^Humidity:\ (.*)/
+                /(\d+)%/ =~ $1
+                attrs.merge({ :humidity => $1.to_i })
+              when /^Pressure:\ (.*)/
+                attrs.merge({ :pressure => $1.to_i })
+              when /^Conditions:\ (.*)/
+                attrs.merge({ :conditions => $1 })
+              when /^Wind\ Direction:\ (.*)/
+                attrs.merge({ :wind_direction => $1 })
+              when /^Wind\ Speed:\ (.*)<.*?>/
+                attrs.merge({ :wind_speed => ($1.scan(/\d+km\/h/).first.gsub('km/h', '').to_f * 1000/3600).round })
+              else
+                attrs
+              end
             end
+            @report = Weather::Report.new(attrs)
           end
-          Weather::Report.new(attrs)
         end
       end
     end
@@ -221,7 +224,6 @@ class Umitter
   attr_accessor :tweets
 
   def initialize(opts={})
-    report(opts[:report] || Umitter::Weather::Reporter.latest)
     @file = opts[:acts_as]
     @tweets = []
     @oauth = SimpleOAuth.new CONSUMER_KEY, CONSUMER_SECRET, TOKEN, TOKEN_SECRET
@@ -273,14 +275,18 @@ class Umitter
   end
 
   def it(condition=true, &block)
-    u = self.class.new :weather => weather
-    u.instance_eval &block
-    @tweets << u.tweets
+    if condition
+      u = self.class.new
+      u.instance_eval &block
+      @tweets << u.tweets
+    end
   end
 
   def m(tweet)
     @tweets << tweet
   end
 end
+
+srand Time.now.to_i
 
 Umitter.new(:acts_as => ARGV[0]).post
